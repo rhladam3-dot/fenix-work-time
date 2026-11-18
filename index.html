@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FENIX WORK TIME</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#090909;color:#fff;font-family:Arial,sans-serif}
+header{padding:24px 18px;background:#15100e;border-bottom:2px solid #f04416}
+h1{margin:0;color:#ff5424;font-size:25px}
+header p{color:#aaa;margin:7px 0 0}
+main{max-width:520px;margin:30px auto;padding:18px}
+.panel{background:#171717;border:1px solid #333;border-radius:15px;padding:22px}
+h2{color:#ff642d;margin-top:0}
+input,button{width:100%;padding:14px;margin:8px 0;border-radius:9px;font-size:16px}
+input{background:#090909;color:white;border:1px solid #555}
+button{background:linear-gradient(90deg,#d92712,#ff7626);color:white;border:0;font-weight:bold}
+button:disabled{opacity:.5}
+.small{color:#aaa;font-size:13px}
+#message{color:#ff9a60;white-space:pre-wrap}
+.worker{padding:13px;margin:9px 0;background:#242424;border-radius:9px}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<header>
+<h1>🔥 FENIX WORK TIME</h1>
+<p>Employee attendance management</p>
+</header>
+<main>
+<section class="panel" id="login">
+<h2>Admin Login</h2>
+<input id="email" type="email" placeholder="Email address">
+<input id="password" type="password" placeholder="Password">
+<button id="loginBtn" onclick="login()">LOGIN</button>
+<p class="small">Authorized administrator access only.</p>
+<p id="message"></p>
+</section>
+
+<section class="panel hidden" id="dashboard">
+<h2>Admin Dashboard</h2>
+<p id="welcome"></p>
+<div class="worker">
+<strong>Workers registered</strong>
+<h2 id="workerCount">0</h2>
+</div>
+<h3>Workers list</h3>
+<div id="workers">Loading...</div>
+<button onclick="logout()">LOG OUT</button>
+</section>
+</main>
+
+<script>
+const firebaseConfig = {
+ apiKey: "AIzaSyA8PQ2AHEPPNnZh-GCOVU4WhwtC8og66YM",
+ authDomain: "fenix-work-time.firebaseapp.com",
+ projectId: "fenix-work-time",
+ storageBucket: "fenix-work-time.firebasestorage.app",
+ messagingSenderId: "1066530328970",
+ appId: "1:1066530328970:web:6e6ae732f476ca35c7f873"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+function showMessage(text){
+ document.getElementById("message").textContent=text;
+}
+
+async function login(){
+ const email=document.getElementById("email").value.trim();
+ const password=document.getElementById("password").value;
+ const btn=document.getElementById("loginBtn");
+ if(!email || !password){
+  showMessage("Enter your email and password.");
+  return;
+ }
+ btn.disabled=true;
+ showMessage("Connecting...");
+ try{
+  await auth.signInWithEmailAndPassword(email,password);
+ }catch(error){
+  showMessage("Login error: "+error.message);
+ }finally{
+  btn.disabled=false;
+ }
+}
+
+async function loadDashboard(user){
+ try{
+  const userDoc=await db.collection("users").doc(user.uid).get();
+  if(!userDoc.exists ||
+     userDoc.data().role!=="admin" ||
+     userDoc.data().active!==true){
+   await auth.signOut();
+   showMessage("Access denied: administrator account not found.");
+   return;
+  }
+
+  document.getElementById("login").classList.add("hidden");
+  document.getElementById("dashboard").classList.remove("hidden");
+  document.getElementById("welcome").textContent=
+    "Welcome, "+user.email;
+
+  const snapshot=await db.collection("workers").get();
+  document.getElementById("workerCount").textContent=snapshot.size;
+  const list=document.getElementById("workers");
+  list.innerHTML="";
+
+  if(snapshot.empty){
+   list.textContent="No workers registered yet.";
+   return;
+  }
+
+  snapshot.forEach(doc=>{
+   const data=doc.data();
+   const item=document.createElement("div");
+   item.className="worker";
+   const name=document.createElement("strong");
+   name.textContent=data.displayName || "Unnamed worker";
+   const status=document.createElement("p");
+   status.className="small";
+   status.textContent=data.active ? "Active" : "Inactive";
+   item.append(name,status);
+   list.appendChild(item);
+  });
+ }catch(error){
+  showMessage("Database error: "+error.message);
+ }
+}
+
+auth.onAuthStateChanged(user=>{
+ if(user) loadDashboard(user);
+ else{
+  document.getElementById("dashboard").classList.add("hidden");
+  document.getElementById("login").classList.remove("hidden");
+ }
+});
+
+async function logout(){
+ await auth.signOut();
+}
+</script>
+</body>
+</html>
