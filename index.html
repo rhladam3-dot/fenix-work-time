@@ -91,16 +91,83 @@ async function login(){
  }
 }
 
+
 async function loadDashboard(user){
  try{
-  const userDoc=await db.collection("users").doc(user.uid).get();
-  if(!userDoc.exists ||
-     userDoc.data().role!=="admin" ||
-     userDoc.data().active!==true){
-   await auth.signOut();
-   showMessage("Access denied: administrator account not found.");
+  const userDoc = await db.collection("users").doc(user.uid).get();
+
+  if(!userDoc.exists){
+   showMessage("DIAGNOSTIC: Document users/"+user.uid+" does not exist.");
    return;
   }
+
+  const data = userDoc.data();
+  const problems = [];
+
+  if(data.role !== "admin"){
+   problems.push(
+    "role is incorrect. Current value: " +
+    JSON.stringify(data.role)
+   );
+  }
+
+  if(data.active !== true){
+   problems.push(
+    "active is incorrect. Current value: " +
+    JSON.stringify(data.active)
+   );
+  }
+
+  if(problems.length > 0){
+   showMessage("ADMIN CHECK FAILED:\n" + problems.join("\n"));
+   console.log("Admin diagnostic:", {
+    email: user.email,
+    role: data.role,
+    active: data.active,
+    roleType: typeof data.role,
+    activeType: typeof data.active
+   });
+   return;
+  }
+
+  document.getElementById("login").classList.add("hidden");
+  document.getElementById("dashboard").classList.remove("hidden");
+  document.getElementById("welcome").textContent =
+   "Welcome, " + user.email;
+
+  const snapshot = await db.collection("workers").get();
+  document.getElementById("workerCount").textContent = snapshot.size;
+
+  const list = document.getElementById("workers");
+  list.innerHTML = "";
+
+  if(snapshot.empty){
+   list.textContent = "No workers registered yet.";
+   return;
+  }
+
+  snapshot.forEach(doc => {
+   const data = doc.data();
+   const item = document.createElement("div");
+   item.className = "worker";
+
+   const name = document.createElement("strong");
+   name.textContent = data.displayName || "Unnamed worker";
+
+   const status = document.createElement("p");
+   status.className = "small";
+   status.textContent = data.active ? "Active" : "Inactive";
+
+   item.append(name, status);
+   list.appendChild(item);
+  });
+
+ }catch(error){
+  showMessage("DATABASE ERROR: " + error.code + " - " + error.message);
+  console.error(error);
+ }
+}
+ 
 
   document.getElementById("login").classList.add("hidden");
   document.getElementById("dashboard").classList.remove("hidden");
